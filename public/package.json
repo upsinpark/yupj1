@@ -23,5 +23,6 @@
       "target": "nsis",
       "icon": "assets/icon.ico"
     }
-  }
-} 
+  },
+  "keywords": []
+}

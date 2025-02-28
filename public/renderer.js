@@ -8,17 +8,20 @@ const searchBtn = document.getElementById('searchBtn');
 const statusEl = document.getElementById('status');
 const resultsContainer = document.getElementById('results');
 
-// 검색 버튼 클릭 이벤트
-searchBtn.addEventListener('click', async () => {
-  const videoType = videoTypeSelect.value;
-  const country = countrySelect.value;
-  const period = periodSelect.value;
-  
-  console.log('선택된 국가:', country); // 디버깅용 로그
-  
-  // UI 초기화
-  statusEl.textContent = '크롤링 중...';
-  statusEl.className = 'status';
+// 로딩 상태 표시 함수
+function showLoading(isLoading) {
+  searchBtn.disabled = isLoading;
+  if (isLoading) {
+    searchBtn.innerHTML = '<span class="loading-text">검색 중...</span>';
+    searchBtn.classList.add('loading-button');
+  } else {
+    searchBtn.textContent = '검색';
+    searchBtn.classList.remove('loading-button');
+  }
+}
+
+// 결과 테이블 초기화 함수
+function initResultsTable() {
   resultsContainer.innerHTML = `
     <table id="resultsTable" class="results-table">
       <thead>
@@ -35,143 +38,156 @@ searchBtn.addEventListener('click', async () => {
       </tbody>
     </table>
   `;
-  const resultsBody = document.getElementById('resultsBody');
-  searchBtn.disabled = true;
-  
+  return document.getElementById('resultsBody');
+}
+
+// 오류 표시 함수
+function showError(message) {
+  const resultsBody = document.getElementById('resultsBody') || initResultsTable();
+  resultsBody.innerHTML = `<tr><td colspan="5" class="error">${message}</td></tr>`;
+  statusEl.textContent = message;
+  statusEl.classList.add('error-status');
+}
+
+// 검색 버튼 클릭 이벤트
+searchBtn.addEventListener('click', async () => {
   try {
-    // 메인 프로세스에 크롤링 요청
-    const data = await ipcRenderer.invoke('scrape-chart', { videoType, country, period });
+    // 이전 오류 상태 초기화
+    statusEl.classList.remove('error-status');
     
-    // 결과가 없는 경우
-    if (!data || data.length === 0) {
-      resultsBody.innerHTML = '<tr><td colspan="5" class="error">결과가 없습니다.</td></tr>';
-      statusEl.textContent = '검색 결과가 없습니다.';
+    const videoType = videoTypeSelect.value;
+    const country = countrySelect.value;
+    const period = periodSelect.value;
+    
+    // UI 초기화
+    statusEl.textContent = '크롤링 준비 중...';
+    const resultsBody = initResultsTable();
+    showLoading(true);
+    
+    // 메인 프로세스에 크롤링 요청
+    let data;
+    try {
+      data = await ipcRenderer.invoke('scrape-chart', { videoType, country, period });
+    } catch (error) {
+      console.error('IPC 통신 오류:', error);
+      showError(`데이터를 불러오는 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
       return;
     }
     
-    // 결과 초기화
+    // 결과가 없는 경우
+    if (!data || data.length === 0) {
+      showError('검색 결과가 없습니다.');
+      return;
+    }
+    
+    // 결과 표시
     resultsBody.innerHTML = '';
     
-    // 유효한 데이터만 필터링
-    const validData = data.filter(item => 
-      item.rank && 
-      item.title && 
-      item.channelName && 
-      item.rank !== 'undefined' && 
-      item.title !== 'undefined' && 
-      item.channelName !== 'undefined'
-    );
-    
-    // 모든 결과를 한 번에 표시
-    validData.forEach(item => {
-      const row = document.createElement('tr');
+    data.forEach(item => {
+      // 누락된 데이터 처리
+      const rank = item.rank || '-';
+      const title = item.title || '제목 없음';
+      const views = item.views || '-';
+      const channelName = item.channelName || '채널 정보 없음';
+      const videoUrl = item.videoUrl || '#';
+      const channelUrl = item.channelUrl || '#';
       
-      // 순위 열
-      const rankCell = document.createElement('td');
-      rankCell.innerHTML = `
-        <div class="rank">${item.rank}</div>
-        <div class="fluctuation ${item.fluctuationType || ''}">
-          ${item.fluctuation ? (item.fluctuationType === 'new' ? 'NEW' : (item.fluctuationType === 'up' ? '▲' : '▼') + item.fluctuation) : ''}
-        </div>
-      `;
-      
-      // 썸네일 열
-      const thumbnailCell = document.createElement('td');
-      if (item.thumbnailUrl && item.thumbnailUrl !== 'undefined') {
-        thumbnailCell.innerHTML = `
-          <a href="${item.videoUrl}" target="_blank">
-            <img src="${item.thumbnailUrl}" alt="${item.title}" class="thumbnail">
-          </a>
-        `;
-      } else {
-        thumbnailCell.innerHTML = `
-          <a href="${item.videoUrl}" target="_blank">
-            <div class="thumbnail no-image">이미지 없음</div>
-          </a>
-        `;
+      // 오류 메시지 확인
+      if (rank === '오류') {
+        showError(title);
+        return;
       }
       
-      // 제목 열
-      const titleCell = document.createElement('td');
-      const tags = item.tags && Array.isArray(item.tags) ? item.tags.filter(tag => tag && tag !== 'undefined') : [];
-      const tagsHtml = tags.map(tag => `<span class="tag">${tag}</span>`).join('');
-      
-      titleCell.innerHTML = `
-        <a href="${item.videoUrl}" target="_blank" class="video-title">${item.title}</a>
-        ${tagsHtml ? `<div class="tags">${tagsHtml}</div>` : ''}
-        ${item.date && item.date !== 'undefined' ? `<div class="date">${item.date}</div>` : ''}
-      `;
-      
-      // 조회수 열
-      const viewsCell = document.createElement('td');
-      viewsCell.textContent = item.views && item.views !== 'undefined' ? item.views : '-';
-      
-      // 채널 열
-      const channelCell = document.createElement('td');
-      channelCell.innerHTML = `
-        <div class="channel-info">
-          <a href="${item.channelUrl && item.channelUrl !== 'undefined' ? item.channelUrl : '#'}" target="_blank" class="channel-link">
-            ${item.channelImageUrl && item.channelImageUrl !== 'undefined' 
-              ? `<img src="${item.channelImageUrl}" alt="${item.channelName}" class="channel-image">`
-              : `<div class="channel-image no-image"></div>`
-            }
-            <div class="channel-details">
-              <div class="channel-name">${item.channelName}</div>
-              ${item.subscribers && item.subscribers !== 'undefined' 
-                ? `<div class="subscribers">${item.subscribers}</div>`
-                : ''
+      resultsBody.innerHTML += `
+        <tr>
+          <td>
+            <div class="rank">${rank}</div>
+            ${item.fluctuation ? `
+              <div class="fluc ${item.fluctuation}">
+                ${item.fluctuation === 'up' ? '▲' : item.fluctuation === 'down' ? '▼' : ''}
+                ${item.fluctuationValue ? `<span class="num">${item.fluctuationValue}</span>` : ''}
+              </div>
+            ` : ''}
+            ${item.isNew ? '<div class="new-badge">NEW</div>' : ''}
+          </td>
+          <td>
+            <a href="${videoUrl}" target="_blank" rel="noopener noreferrer">
+              ${item.thumbnailUrl ? 
+                `<img src="${item.thumbnailUrl}" alt="${title}" class="thumbnail" onerror="this.onerror=null; this.src=''; this.classList.add('no-image'); this.textContent='이미지 없음';">` : 
+                `<div class="thumbnail no-image">이미지 없음</div>`
               }
+            </a>
+          </td>
+          <td>
+            <a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="video-title">${title}</a>
+            ${item.isNew ? '<span class="new-label">NEW</span>' : ''}
+          </td>
+          <td>${views}</td>
+          <td>
+            <div class="channel-info">
+              <a href="${channelUrl}" target="_blank" rel="noopener noreferrer" class="channel-link">
+                ${item.channelImageUrl ? 
+                  `<img src="${item.channelImageUrl}" alt="${channelName}" class="channel-image" onerror="this.onerror=null; this.src=''; this.classList.add('no-image');">` : 
+                  `<div class="channel-image no-image"></div>`
+                }
+                <div class="channel-details">
+                  <div class="channel-name">${channelName}</div>
+                </div>
+              </a>
             </div>
-          </a>
-        </div>
+          </td>
+        </tr>
       `;
-      
-      // 행에 셀 추가
-      row.appendChild(rankCell);
-      row.appendChild(thumbnailCell);
-      row.appendChild(titleCell);
-      row.appendChild(viewsCell);
-      row.appendChild(channelCell);
-      
-      // 테이블에 행 추가
-      resultsBody.appendChild(row);
     });
     
-    statusEl.textContent = `${validData.length}개의 결과를 찾았습니다.`;
+    // 오류 메시지가 있는지 확인
+    const errorItem = data.find(item => item.rank === '오류');
+    if (errorItem) {
+      statusEl.textContent = errorItem.title;
+      statusEl.classList.add('error-status');
+    } else {
+      statusEl.textContent = `${data.length}개의 결과를 찾았습니다.`;
+    }
   } catch (error) {
-    console.error('크롤링 오류:', error);
-    statusEl.textContent = '오류가 발생했습니다: ' + error.message;
-    statusEl.className = 'status error';
-    resultsBody.innerHTML = '<tr><td colspan="5" class="error">데이터를 불러오는 중 오류가 발생했습니다.</td></tr>';
+    console.error('렌더러 오류:', error);
+    showError(`처리 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
   } finally {
-    searchBtn.disabled = false;
+    showLoading(false);
   }
 });
 
 // 상태 업데이트 이벤트 리스너
 ipcRenderer.on('update-status', (event, message) => {
   statusEl.textContent = message;
+  
+  // 오류 메시지인 경우 스타일 적용
+  if (message.toLowerCase().includes('오류')) {
+    statusEl.classList.add('error-status');
+  } else {
+    statusEl.classList.remove('error-status');
+  }
 });
 
-// 페이지 로드 시 국가 옵션 추가
+// 페이지 로드 시 초기 상태 설정
 document.addEventListener('DOMContentLoaded', () => {
-  // 기존 옵션 유지하면서 새 옵션 추가
-  const countries = [
-    { value: 'south-korea', text: '한국' },
-    { value: 'united-states', text: '미국' },
-    { value: 'japan', text: '일본' },
-    { value: 'spain', text: '스페인' },
-    { value: 'india', text: '인도' }
-  ];
+  statusEl.textContent = '검색할 옵션을 선택하고 검색 버튼을 클릭하세요.';
   
-  // 기존 옵션 제거
-  countrySelect.innerHTML = '';
+  // 이미지 로드 오류 처리
+  document.addEventListener('error', (e) => {
+    const target = e.target;
+    if (target.tagName.toLowerCase() === 'img') {
+      target.style.display = 'none';
+      const div = document.createElement('div');
+      div.className = target.className + ' no-image';
+      div.textContent = '이미지 없음';
+      target.parentNode.replaceChild(div, target);
+    }
+  }, true);
   
-  // 새 옵션 추가
-  countries.forEach(country => {
-    const option = document.createElement('option');
-    option.value = country.value;
-    option.textContent = country.text;
-    countrySelect.appendChild(option);
+  // 키보드 이벤트 처리 (Enter 키로 검색)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !searchBtn.disabled) {
+      searchBtn.click();
+    }
   });
 }); 
