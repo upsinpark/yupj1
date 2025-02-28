@@ -1,0 +1,27 @@
+{
+  "name": "youtube-chart-crawler",
+  "version": "1.0.0",
+  "description": "유튜브 차트 크롤링 프로그램",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^21.5.0"
+  },
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "build": {
+    "appId": "com.youtubeChartCrawler",
+    "productName": "유튜브 차트 크롤러",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    }
+  }
+} 

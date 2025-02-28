@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>유튜브 차트 크롤러</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>유튜브 인기 차트</h1>
+    
+    <div class="form-container">
+      <div class="form-group">
+        <label for="videoType">비디오 타입</label>
+        <select id="videoType">
+          <option value="short">숏폼 (Short)</option>
+          <option value="video">일반 영상 (Video)</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="country">국가</label>
+        <select id="country">
+          <option value="south-korea">한국</option>
+          <option value="united-states">미국</option>
+          <option value="japan">일본</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="period">기간</label>
+        <select id="period">
+          <option value="daily">일간</option>
+          <option value="weekly">주간</option>
+          <option value="monthly">월간</option>
+        </select>
+      </div>
+      
+      <button id="searchBtn">검색</button>
+    </div>
+    
+    <div id="status" class="status"></div>
+    
+    <div id="results" class="results-container">
+      <table id="resultsTable" class="results-table">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th>썸네일</th>
+            <th>제목</th>
+            <th>조회수</th>
+            <th>채널</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <!-- 결과가 여기에 표시됩니다 -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html> 
